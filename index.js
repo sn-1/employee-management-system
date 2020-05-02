@@ -3,6 +3,7 @@ const mysql = require("mysql2");
 require('dotenv').config();
 
 
+// pool
 
 
 const pool = mysql.createPool({
