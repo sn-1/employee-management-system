@@ -46,4 +46,4 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## Authors
 
-https://github.com/sn-1
+[GitHub](https://github.com/sn-1)
