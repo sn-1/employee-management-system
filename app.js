@@ -3,6 +3,14 @@ const myDB = require("./index");
 
 
 
+const loginPrompt = [
+    {
+        name: "username",
+        type: "input",
+        message: "Please enter your username"
+    }
+];
+
 const starterPrompt = [
     {
         name: "actionitem",
@@ -45,6 +53,21 @@ const starterPrompt = [
     },
 ]
 
+
+async function getEMSUser(){
+    try {
+
+        let login = await inquirer.prompt(loginPrompt);
+
+        let result = await myDB.setDBUser(login);
+
+        console.log(result);
+        
+    } catch (error) {
+        console.log(error);
+        
+    }
+}
 
 async function getUserInput() {
     try {
