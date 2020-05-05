@@ -1,407 +1,410 @@
+const inquirer = require("inquirer");
+let Database = require("./app");
+let cTable = require("console.table");
 
-const mysql = require("mysql2");
+const db = new Database({
+    host: "localhost",
+    port: 3306,
+    user: "root",
+    password: "nawrinN123$",
+    database: "employee_db"
+  });
+  
 
-require('dotenv').config();
+     
 
 
-// pool
+async function getManagerNames() {
+    let query = "SELECT * FROM employee WHERE manager_id IS NULL";
+
+    const rows = await db.query(query);
+    
+    let employeeNames = [];
+    for(const employee of rows) {
+        employeeNames.push(employee.first_name + " " + employee.last_name);
+    }
+    return employeeNames;
+}
+
+async function getRoles() {
+    let query = "SELECT title FROM role";
+    const rows = await db.query(query);
+   
+
+    let roles = [];
+    for(const row of rows) {
+        roles.push(row.title);
+    }
+
+    return roles;
+}
+
+async function getDepartmentNames() {
+    let query = "SELECT name FROM department";
+    const rows = await db.query(query);
+    
+
+    let departments = [];
+    for(const row of rows) {
+        departments.push(row.name);
+    }
+
+    return departments;
+}
+
+async function getDepartmentId(departmentName) {
+    let query = "SELECT * FROM department WHERE department.name=?";
+    let args = [departmentName];
+    const rows = await db.query(query, args);
+    return rows[0].id;
+}
+
+async function getRoleId(roleName) {
+    let query = "SELECT * FROM role WHERE role.title=?";
+    let args = [roleName];
+    const rows = await db.query(query, args);
+    return rows[0].id;
+}
 
 
-const pool = mysql.createPool({
-    host: process.env.MYSQL_HOST,
-    port: process.env.MYSQL_PORT,
-    user: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE
+async function getEmployeeId(fullName) {
+    
+    let employee = getFirstAndLastName(fullName);
+
+    let query = 'SELECT id FROM employee WHERE employee.first_name=? AND employee.last_name=?';
+    let args=[employee[0], employee[1]];
+    const rows = await db.query(query, args);
+    return rows[0].id;
+}
+
+async function getEmployeeNames() {
+    let query = "SELECT * FROM employee";
+
+    const rows = await db.query(query);
+    let employeeNames = [];
+    for(const employee of rows) {
+        employeeNames.push(employee.first_name + " " + employee.last_name);
+    }
+    return employeeNames;
+}
+
+async function viewAllRoles() {
+    console.log("");
+   
+    let query = "SELECT * FROM role";
+    const rows = await db.query(query);
+    console.table(rows);
+    return rows;
+}
+
+async function viewAllDepartments() {
+  
+
+    let query = "SELECT * FROM department";
+    const rows = await db.query(query);
+    console.table(rows);
+}
+
+async function viewAllEmployees() {
+    console.log("");
+
+    
+    let query = "SELECT * FROM employee";
+    const rows = await db.query(query);
+    console.table(rows);
+}
+
+async function viewAllEmployeesByDepartment() {
+    
+    console.log("");
+    let query = "SELECT first_name, last_name, department.name FROM ((employee INNER JOIN role ON role_id = role.id) INNER JOIN department ON department_id = department.id);";
+    const rows = await db.query(query);
+    console.table(rows);
+}
+
+
+function getFirstAndLastName( fullName ) {
+    
+    let employee = fullName.split(" ");
+    if(employee.length == 2) {
+        return employee;
+    }
+
+    const last_name = employee[employee.length-1];
+    let first_name = " ";
+    for(let i=0; i<employee.length-1; i++) {
+        first_name = first_name + employee[i] + " ";
+    }
+    return [first_name.trim(), last_name];
+}
+
+async function updateEmployeeRole(employeeInfo) {
+    
+
+    const roleId = await getRoleId(employeeInfo.role);
+    const employee = getFirstAndLastName(employeeInfo.employeeName);
+
+    let query = 'UPDATE employee SET role_id=? WHERE employee.first_name=? AND employee.last_name=?';
+    let args=[roleId, employee[0], employee[1]];
+    const rows = await db.query(query, args);
+    console.log(`Updated employee ${employee[0]} ${employee[1]} with role ${employeeInfo.role}`);
+}
+
+async function addEmployee(employeeInfo) {
+    let roleId = await getRoleId(employeeInfo.role);
+    let managerId = await getEmployeeId(employeeInfo.manager);
+
+    
+    let query = "INSERT into employee (first_name, last_name, role_id, manager_id) VALUES (?,?,?,?)";
+    let args = [employeeInfo.first_name, employeeInfo.last_name, roleId, managerId];
+    const rows = await db.query(query, args);
+    console.log(`Added employee ${employeeInfo.first_name} ${employeeInfo.last_name}.`);
+}
+
+async function removeEmployee(employeeInfo) {
+    const employeeName = getFirstAndLastName(employeeInfo.employeeName);
+    
+    let query = "DELETE from employee WHERE first_name=? AND last_name=?";
+    let args = [employeeName[0], employeeName[1]];
+    const rows = await db.query(query, args);
+    console.log(`Employee removed: ${employeeName[0]} ${employeeName[1]}`);
+}
+
+async function addDepartment(departmentInfo) {
+    const departmentName = departmentInfo.departmentName;
+    let query = 'INSERT into department (name) VALUES (?)';
+    let args = [departmentName];
+    const rows = await db.query(query, args);
+    console.log(`Added department named ${departmentName}`);
+}
+
+async function addRole(roleInfo) {
+   
+    const departmentId = await getDepartmentId(roleInfo.departmentName);
+    const salary = roleInfo.salary;
+    const title = roleInfo.roleName;
+    let query = 'INSERT into role (title, salary, department_id) VALUES (?,?,?)';
+    let args = [title, salary, departmentId];
+    const rows = await db.query(query, args);
+    console.log(`Added role ${title}`);
+}
+
+
+
+async function mainPrompt() {
+    return inquirer
+        .prompt([
+            {
+                type: "list",
+                message: "What would you like to do?",
+                name: "action",
+                choices: [
+                  "Add department",
+                  "Add employee",
+                  "Add role",
+                  "Remove employee",
+                  "Update employee role",
+                  "View all departments",
+                  "View all employees",
+                  "View all employees by department",
+                  "View all roles",
+                  "Exit"
+                ]
+            }
+        ])
+}
+
+async function getAddEmployeeInfo() {
+    const managers = await getManagerNames();
+    const roles = await getRoles();
+    return inquirer
+        .prompt([
+            {
+                type: "input",
+                name: "first_name",
+                message: "What is the employee's first name?"
+            },
+            {
+                type: "input",
+                name: "last_name",
+                message: "What is the employee's last name?"
+            },
+            {
+                type: "list",
+                message: "What is the employee's role?",
+                name: "role",
+                choices: [
+                   
+                    ...roles
+                ]
+            },
+            {
+                type: "list",
+                message: "Who is the employee's manager?",
+                name: "manager",
+                choices: [
+                    
+                    ...managers
+                ]
+            }
+        ])
+}
+
+async function getRemoveEmployeeInfo() {
+    const employees = await getEmployeeNames();
+    return inquirer
+    .prompt([
+        {
+            type: "list",
+            message: "Which employee do you want to remove?",
+            name: "employeeName",
+            choices: [
+              
+                ...employees
+            ]
+        }
+    ])
+}
+
+async function getDepartmentInfo() {
+    return inquirer
+    .prompt([
+        {
+            type: "input",
+            message: "What is the name of the new department?",
+            name: "departmentName"
+        }
+    ])
+}
+
+async function getRoleInfo() {
+    const departments = await getDepartmentNames();
+    return inquirer
+    .prompt([
+        {
+            type: "input",
+            message: "What is the title of the new role?",
+            name: "roleName"
+        },
+        {
+            type: "input",
+            message: "What is the salary of the new role?",
+            name: "salary"
+        },
+        {
+            type: "list",
+            message: "Which department uses this role?",
+            name: "departmentName",
+            choices: [
+                
+                ...departments
+            ]
+        }
+    ])
+}
+
+async function getUpdateEmployeeRoleInfo() {
+    const employees = await getEmployeeNames();
+    const roles = await getRoles();
+    return inquirer
+        .prompt([
+            {
+                type: "list",
+                message: "Which employee do you want to update?",
+                name: "employeeName",
+                choices: [
+                    
+                    ...employees
+                ]
+            },
+            {
+                type: "list",
+                message: "What is the employee's new role?",
+                name: "role",
+                choices: [
+                    
+                    ...roles
+                ]
+            }
+        ])
+
+}
+
+async function main() {
+    let exitLoop = false;
+    while(!exitLoop) {
+        const prompt = await mainPrompt();
+
+        switch(prompt.action) {
+            case 'Add department': {
+                const newDepartmentName = await getDepartmentInfo();
+                await addDepartment(newDepartmentName);
+                break;
+            }
+
+            case 'Add employee': {
+                const newEmployee = await getAddEmployeeInfo();
+                console.log("add an employee");
+                console.log(newEmployee);
+                await addEmployee(newEmployee);
+                break;
+            }
+
+            case 'Add role': {
+                const newRole = await getRoleInfo();
+                console.log("add a role");
+                await addRole(newRole);
+                break;
+            }
+
+            case 'Remove employee': {
+                const employee = await getRemoveEmployeeInfo();
+                await removeEmployee(employee);
+                break;
+            }
+            
+            case 'Update employee role': {
+                const employee = await getUpdateEmployeeRoleInfo();
+                await updateEmployeeRole(employee);
+                break;
+            }
+
+            case 'View all departments': {
+                await viewAllDepartments();
+                break;
+            }
+
+            case 'View all employees': {
+                await viewAllEmployees();
+                break;
+            }
+
+            case 'View all employees by department': {
+                await viewAllEmployeesByDepartment();
+                break;
+            }
+
+            case 'View all roles': {
+                await viewAllRoles();
+                break;
+            }
+
+            case 'Exit': {
+                exitLoop = true;
+                process.exit(0); 
+                return;
+            }
+
+            default:
+                console.log(`Internal warning. Shouldn't get here. action was ${prompt.action}`);
+        }
+    }
+}
+
+
+process.on("exit", async function(code) {
+    await db.close();
+    return console.log(`About to exit with code ${code}`);
 });
 
-const promisePool = pool.promise();
-
-const DB_USER = {}
-
-async function setDBUser(user) {
-    try {
-
-        DB_USER.created_by = user.username;
-        DB_USER.updated_by = user.username;
-
-        console.log(DB_USER);
-
-        return "\nlogin succesful!\n"
-
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-async function getAllDepartments() {
-    try {
-
-        let query = 'SELECT id, name FROM department';
-        let results = await promisePool.query(query);
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-
-async function insertNewDept(newDept) {
-    try {
-
-        let query = `INSERT INTO department SET ?`;
-        await promisePool.query(query, { ...DB_USER, ...newDept });
-
-        return "\nNew deptartment successfully created. . . .\n";
-
-    } catch (error) {
-        console.log(error);
-    }
-}
-
-async function getAllDeptUtilBudget() {
-    try {
-
-        let query = `WITH emp_salaries (dpt_id, dpt_name, role, employee, salary) AS (
-            SELECT DISTINCT dpt.id, dpt.name as Department,er.title , concat(emp.first_name," ",emp.last_name) as "Employee",er.salary 
-             FROM department dpt INNER JOIN emp_role er on er.department_id =  dpt.id INNER JOIN employee emp on emp.role_id = er.id 
-             ORDER BY dpt.id,er.id,emp.id) 
-             SELECT dpt_id ,dpt_name,FORMAT(SUM(salary),2) as "Total" 
-             FROM emp_salaries GROUP BY dpt_id, dpt_name 
-             UNION SELECT "Grand Total", "",FORMAT(SUM(salary),2) as "Total" FROM emp_salaries;`;
-
-        let results = await promisePool.query(query);
-
-        return results[0];
-
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-async function getOneDeptBudget(dept) {
-    try {
-
-        let query = `WITH emp_salaries (dpt_id, dpt_name, role, employee, salary) AS (
-            SELECT DISTINCT dpt.id, dpt.name as Department,er.title , concat(emp.first_name," ",emp.last_name) as "Employee",er.salary
-            FROM department dpt INNER JOIN emp_role er on er.department_id =  dpt.id INNER JOIN employee emp on emp.role_id = er.id
-            ORDER BY dpt.id,er.id,emp.id)  
-            SELECT dpt_id ,dpt_name,FORMAT(SUM(salary),2) as "Total"  
-            FROM emp_salaries WHERE dpt_id = ? GROUP BY dpt_id, dpt_name;`;
-
-        let results = await promisePool.query(query, dept);
-
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-
-async function deleteDept(delDept) {
-    try {
-
-        let query = 'DELETE FROM department WHERE ID = ?';
-
-        await promisePool.query(query, delDept.id);
-
-        return "\ndepartment successfully deleted. . . .\n";
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-
-async function getAllRoles() {
-    try {
-
-        let query = 'SELECT er.id, d.name as department, er.department_id, er.title, FORMAT(er.salary,2) as salary ';
-        query += ' FROM emp_role er LEFT JOIN department d ON d.id = er.department_id ';
-        query += ' ORDER BY er.department_id, er.id ASC ';
-
-        let results = await promisePool.query(query);
-
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-async function insertNewRole(roleParams) {
-    try {
-        let query = `INSERT INTO emp_role SET ?`;
-        await promisePool.query(query, { ...DB_USER, ...roleParams });
-        return "\nNew role successfully created. . . .\n";
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-
-async function getManagerList() {
-    try {
-
-        let query = `WITH emp_list (id,fname,lname,role,manager,title) AS (
-            SELECT
-                emp.id
-                , emp.first_name
-                , emp.last_name
-                , emp.role_id 
-                , emp.manager_id
-                , er.title
-            FROM employee emp
-                LEFT JOIN emp_role er on er.id = emp.role_id
-        )
-        SELECT DISTINCT
-            mgr.id
-            , CONCAT(mgr.fname," ",mgr.lname) AS "Manager"
-            , mgr.title
-            , COUNT(emp.id) as "Num_DirectReports"
-        FROM emp_list emp
-            INNER JOIN emp_list mgr ON mgr.id = emp.manager
-        GROUP BY mgr.id,  CONCAT(mgr.fname," ",mgr.lname);`
-
-        let results = await promisePool.query(query);
-
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-
-async function deleteRole(delRole) {
-    try {
-        let query = 'DELETE FROM emp_role WHERE ID = ?';
-        await promisePool.query(query, delRole.id);
-        let message = "\nrole successfully deleted. . . .\n";
-        return message;
-
-    } catch (error) {
-        console.log(error.message);
-
-    }
-}
-
-
-async function getRoleEmpCount() {
-    try {
-        let query = `SELECT er.id, er. title, COUNT(emp.id) as EmployeeCount`;
-        query += ` FROM emp_role er LEFT JOIN employee emp on emp.role_id = er.id`;
-        query += ` GROUP BY er.id, er.title ORDER BY EmployeeCount,er.id;`;
-
-        let results = await promisePool.query(query);
-
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-async function updateRoleDept(roleDept) {
-    try {
-
-        let query = "UPDATE emp_role SET ? WHERE id = ?";
-
-        await promisePool.query(query, [
-            {
-                department_id: roleDept.department_id,
-                updated_by: DB_USER.updated_by
-            }
-            , roleDept.id
-        ]);
-
-        return "\nrole's department successfully updated. . . .\n";
-
-    } catch (error) {
-        console.log(error);
-    }
-
-}
-
-
-async function updateRoleSalary(roleSal) {
-    try {
-
-        let query = "UPDATE emp_role SET salary = ? WHERE id = ?";
-
-        await promisePool.query(query,
-            [
-                {
-                    salary: roleSal.salary,
-                    updated_by: DB_USER.updated_by
-                }
-                , roleSal.id
-            ]);
-
-        return "\nrole's salary successfully updated. . . .\n"
-
-    } catch (error) {
-        console.log(error);
-
-    }
-
-}
-
-
-async function getAllEmployeeData() {
-    try {
-        let query = 'SELECT DISTINCT emp.id, emp.first_name, emp.last_name, er.title, dpt.name as Department, FORMAT(er.salary,2) as Salary , emp.manager_id, IFNULL(concat(mngr.first_name," ",mngr.last_name),"") as Manager ';
-        query += 'FROM employee emp LEFT JOIN emp_role er on er.id = emp.role_id LEFT JOIN department dpt on dpt.id = er.department_id LEFT JOIN employee mngr on mngr.id = emp.manager_id ';
-        query += ' ORDER BY er.department_id,er.id,emp.id';
-
-        let results = await promisePool.query(query);
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-    }
-}
-
-async function getEmployeeList() {
-    try {
-        let query = 'SELECT DISTINCT emp.id, concat(emp.first_name, " ", emp.last_name) as Employee, emp.role_id, er.title, emp.manager_id ';
-        query += ' FROM employee emp LEFT JOIN emp_role er on er.id = emp.role_id ORDER BY emp.id';
-
-        let results = await promisePool.query(query);
-
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-async function getEmployeeByDept(deptID) {
-    try {
-        let query = 'SELECT emp.id, concat(first_name, " ", last_name) as Employee, emp.role_id, er.title';
-        query += ' FROM employee emp INNER JOIN emp_role er on er.id = emp.role_id';
-        query += ' WHERE er.department_id = ? ORDER BY er.id,emp.id';
-
-        let results = await promisePool.query(query, deptID);
-
-        return results[0];
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-async function insertNewEmp(newEmp) {
-    try {
-
-        let query = 'INSERT INTO employee SET ?';
-        await promisePool.query(query, { ...DB_USER, ...newEmp });
-
-        return "\nNew employee successfully created. . . .\n";
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-async function updateEmpRoleMgr(empRole) {
-    try {
-
-        let query = 'UPDATE employee SET ? WHERE ?';
-        await promisePool.query(query,
-            [
-                {
-                    role_id: empRole.role_id,
-                    manager_id: empRole.manager_id,
-                    updated_by: DB_USER.updated_by
-                },
-                {
-                    id: empRole.id
-                }
-            ]);
-
-        return "\nemployee successfully updated. . . .\n";
-
-    } catch (error) {
-        console.log(error);
-    }
-}
-
-async function deleteEmployee(deleteEmp) {
-    try {
-
-        let query = "DELETE FROM employee WHERE id = ?";
-        await promisePool.query(query, deleteEmp.id);
-
-        return "\nemployee successfully deleted. . . .\n"
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-
-async function getEmpByMgr(empManager) {
-    try {
-
-        let query = 'SELECT emp.id, concat(first_name, " ", last_name) as Employee, er.title';
-        query += ' FROM employee emp INNER JOIN emp_role er on er.id = emp.role_id';
-        query += ' WHERE emp.manager_id = ? ORDER BY emp.id';
-
-        let results = await await promisePool.query(query, empManager.manager_id);
-
-        return results[0];
-
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-function closeDB() {
-    pool.end();
-}
-
-
-module.exports = {
-    setDBUser,
-    getAllEmployeeData,
-    getEmployeeList,
-    getEmployeeByDept,
-    getAllDepartments,
-    getAllRoles,
-    insertNewDept,
-    insertNewRole,
-    insertNewEmp,
-    updateEmpRoleMgr,
-    getAllDeptUtilBudget,
-    getOneDeptBudget,
-    deleteEmployee,
-    getManagerList,
-    getEmpByMgr,
-    deleteRole,
-    deleteDept,
-    getRoleEmpCount,
-    updateRoleSalary,
-    updateRoleDept,
-    closeDB
-};
+main();
